@@ -1,58 +1,58 @@
-module control_unit( //need fix
-    input [31:0] ins, 
-    input breq, brlt,
-    input iready,
-    output reg pcsel, regwen, asel, bsel, memw, //brun
-    output reg [1:0] wbsel,
-    output reg [2:0] alusel,
-    output reg [2:0] immsel
+module control_unit(
+    input  [31:0] ins,
+    input         breq, brlt,
+    output        pcsel, regwen, asel, bsel, memw, brun,
+    output [1:0]  wbsel,
+    output [2:0]  alusel,
+    output [2:0]  immsel
 );
-    wire [6:0] opcode; 
-    wire [2:0] funct3;
-    wire [6:0] funct7;
+    // PCSel_ImmSel_RegWEn_brun_ASel_BSel_ALUSel_MemW_WBSel
+    wire [6:0] opcode = ins[6:0];
+    wire [2:0] funct3 = ins[14:12];
+    wire [6:0] funct7 = ins[31:25];
 
-    assign opcode = iready ? ins[6:0] : 7'b0;
-    assign funct3 = ins[14:12];
-    assign funct7 = ins[31:25];
-    always @(opcode, funct3, funct7) begin
-        pcsel  = 0;
-        immsel = 3'b000;
-        regwen = 0;
-        asel   = 1;
-        bsel   = 1;
-        alusel = 3'b000;
-        memw   = 0;
-        wbsel  = 2'b01;
+    reg [13:0] control;
+    assign {pcsel, immsel, regwen, brun, asel, bsel, alusel, memw, wbsel} = control;
 
-        case(opcode)
+    always @(funct3, funct7, opcode) begin
+        control = 14'b0_000_0_0_0_0_000_0_00;
+        case (opcode)
             7'b0110011: begin
                 case (funct3)
                     3'b000: begin
                         if (funct7 == 7'b0000000)
-                            begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b000; memw = 0; wbsel = 2'b01; end  // add
-                        else 
-                            begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b001; memw = 0; wbsel = 2'b01; end  // sub
+                            control = 14'b0_000_1_0_0_0_000_0_01; // add
+                        else
+                            control = 14'b0_000_1_0_0_0_001_0_01; // sub
                     end
-                    3'b111: begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b010; memw = 0; wbsel = 2'b01; end  // and
-                    3'b110: begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b011; memw = 0; wbsel = 2'b01; end  // or
-                    3'b100: begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b100; memw = 0; wbsel = 2'b01; end  // xor
+                    3'b111: control = 14'b0_000_1_0_0_0_010_0_01; // and
+                    3'b110: control = 14'b0_000_1_0_0_0_011_0_01; // or
+                    3'b100: control = 14'b0_000_1_0_0_0_100_0_01; // xor
+                    default:control = 14'b0_000_1_0_0_0_000_0_01;
                 endcase
             end
-            7'b0010011: begin pcsel = 0; immsel = 3'b001; regwen = 1; asel = 1; bsel = 0; alusel = 3'b000; memw = 0; wbsel = 2'b01; end  // addi
-            7'b0000011: begin pcsel = 0; immsel = 3'b001; regwen = 1; asel = 1; bsel = 0; alusel = 3'b000; memw = 0; wbsel = 2'b00; end  // lw
-            7'b1100111: begin pcsel = 1; immsel = 3'b001; regwen = 1; asel = 1; bsel = 0; alusel = 3'b000; memw = 0; wbsel = 2'b11; end  // jalr
-            7'b0100011: begin pcsel = 0; immsel = 3'b010; regwen = 0; asel = 1; bsel = 0; alusel = 3'b000; memw = 1; end                 // sw
-            7'b1100011: begin 
-                case(funct3)
-                    3'b000: begin pcsel = breq; immsel = 3'b011; regwen = 0; /*brun = 0;*/ asel = 0; bsel = 0; alusel = 3'b000; memw = 0; end  // beq
-                    3'b001: begin pcsel = ~breq; immsel = 3'b011; regwen = 0; /*brun = 0;*/ asel = 0; bsel = 0; alusel = 3'b000; memw = 0; end // bne
-                    3'b100: begin pcsel = brlt; immsel = 3'b011; regwen = 0; /*brun = 0;*/ asel = 0; bsel = 0; alusel = 3'b000; memw = 0; end  // blt
-                    3'b101: begin pcsel = ~brlt; immsel = 3'b011; regwen = 0; /*brun = 0;*/ asel = 0; bsel = 0; alusel = 3'b000; memw = 0; end // bge
-                    default: begin pcsel = 0; immsel = 3'b000; regwen = 1; asel = 1; bsel = 1; alusel = 3'b000; memw = 0; wbsel = 2'b01; end
+
+            7'b0010011: control = 14'b0_001_1_0_0_1_000_0_01; // addi
+            7'b0000011: control = 14'b0_001_1_0_0_1_000_0_00; // lw
+            7'b1100111: control = 14'b1_001_1_0_0_1_000_0_11; // jalr
+            7'b0100011: control = 14'b0_010_0_0_0_1_000_1_00; // sw
+
+            7'b1100011: begin
+                case (funct3)
+                    3'b000: control =  breq  ? 14'b1_011_0_0_1_1_000_0_00
+                                             : 14'b0_011_0_0_1_1_000_0_00; // beq
+                    3'b001: control = ~breq  ? 14'b1_011_0_0_1_1_000_0_00
+                                             : 14'b0_011_0_0_1_1_000_0_00; // bne
+                    3'b100: control =  brlt  ? 14'b1_011_0_0_1_1_000_0_00
+                                             : 14'b0_011_0_0_1_1_000_0_00; // blt
+                    3'b101: control = ~brlt  ? 14'b1_011_0_0_1_1_000_0_00
+                                             : 14'b0_011_0_0_1_1_000_0_00; // bge
+                    default:control = 14'b0_000_0_0_0_0_000_0_00;
                 endcase
             end
-            7'b1101111: begin pcsel = 1; immsel = 3'b100; regwen = 1; asel = 0; bsel = 0; alusel = 3'b000; memw = 0; wbsel = 2'b11; end   // jal
-            default: begin pcsel = 0; immsel = 3'b000; regwen = 1; asel = 1; bsel = 1; alusel = 3'b000; memw = 0; wbsel = 2'b01; end //R type
+
+            7'b1101111: control = 14'b1_100_1_0_1_1_000_0_11; // jal
+            default:    control = 14'b0_000_0_0_0_0_000_0_00;
         endcase
     end
 endmodule
