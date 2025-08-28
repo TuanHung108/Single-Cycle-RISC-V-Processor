@@ -1,0 +1,530 @@
+
+// module program_counter (
+//     input clk,
+//     input rst_n,
+//     input pcsel,
+//     input [31:0] pc_plus4,
+//     input [31:0] pc_target,
+//     output reg [31:0] pc_out
+// ); 
+//     always @(posedge clk or negedge rst_n) begin
+//         if (!rst_n) begin
+//             pc_out <= 32'b0;
+//         end 
+//         else if (pcsel) begin
+//             pc_out <= pc_target;
+//         end
+//         else begin 
+//             pc_out <= pc_plus4;
+//         end
+//     end
+// endmodule 
+
+
+// module alu(
+//     input [31:0] data_rs1, data_rs2, 
+//     input [31:0] imm_extend, pc,
+//     input asel, bsel,
+//     input [2:0] alusel, 
+//     output reg [31:0] alu_res,
+//     output breq, brlt
+// );
+//     wire [31:0] op1, op2;
+
+//     assign op1 = asel ? data_rs1 : pc;
+//     assign op2 = bsel ? data_rs2 : imm_extend; 
+
+//     always @(alusel) begin
+//         case(alusel)
+//             3'b000: alu_res = op1 + op2;
+//             3'b001: alu_res = op1 - op2;
+//             3'b010: alu_res = op1 & op2;
+//             3'b011: alu_res = op1 | op2;
+//             3'b100: alu_res = op1 ^ op2;
+//             default: alu_res = 0;
+//         endcase
+//     end
+
+//     assign breq = (data_rs1 == data_rs2);
+//     assign brlt = (data_rs1 < data_rs2);
+// endmodule
+
+// module branch (
+//     input [31:0] data_A,
+//     input [31:0] data_B,
+//     output breq,
+//     output brlt
+// );
+//     assign breq = (data_A == data_B);
+//     assign brlt = ($signed(data_A) < $signed(data_B));
+// endmodule
+
+
+module register_file (
+    input clk, rst_n,
+    input regwen,
+    input [4:0] addrA, // read addr1
+    input [4:0] addrB, // read addr2
+    input [4:0] addrD, // write addr
+    input [31:0] data_in,
+    input [31:0] imm_extend, pc,
+    input asel, bsel,
+    input [2:0] alusel, 
+    output reg [31:0] alu_res,
+    output breq, brlt,
+    output [31:0] data_B
+
+    // output [31:0] data_A,
+    // output [31:0] data_B
+);
+    reg [31:0] mem [0:31]; 
+
+    integer i;
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            for (i = 0; i < 32; i = i + 1)
+                mem[i] <= 32'b0;
+        end else if (regwen && addrD != 0) begin
+            // ghi vào register khác x0
+            mem[addrD] <= data_in;
+        end
+    end
+
+    // Read asynchronous
+    assign data_A = mem[addrA];
+    assign data_B = mem[addrB];
+
+    wire [31:0] op1, op2;
+
+    assign op1 = asel ? data_A : pc;
+    assign op2 = bsel ? data_B : imm_extend; 
+
+    always @(alusel, op1, op2) begin
+        case(alusel)
+            3'b000: alu_res = op1 + op2;
+            3'b001: alu_res = op1 - op2;
+            3'b010: alu_res = op1 & op2;
+            3'b011: alu_res = op1 | op2;
+            3'b100: alu_res = op1 ^ op2;
+            default: alu_res = 0;
+        endcase
+    end
+
+    assign breq = (data_A == data_B);
+    assign brlt = ($signed(data_A) < $signed(data_B)); //(data_A < data_B);
+
+endmodule
+
+
+module data_memory (
+    input clk,
+    input memw,
+    input [31:0] address,
+    input [31:0] data_write,
+    output [31:0] data_read
+);
+    integer i;  
+    reg [31:0] ram [255:0];  
+    wire [7:0] ram_addr = address[8 : 1];  
+
+    initial begin  
+        for(i=0;i<256;i=i+1)  
+            ram[i] <= 32'd0;  
+    end
+    
+    always @(posedge clk) begin  
+        if (memw)  
+            ram[ram_addr] <= data_write;  
+    end  
+    assign data_read = ram[ram_addr];
+endmodule 
+
+
+// module decode(
+//     input  [31:0] ins,
+//     input iready,
+//     output reg [4:0]  rs1,
+//     output reg [4:0]  rs2,
+//     output reg [4:0]  rd,
+//     output reg [2:0]  funct3,
+//     output reg [6:0]  funct7,
+//     output reg [31:0] imm_extend
+// );
+
+//     wire [6:0] opcode;
+//     assign opcode = (iready) ? ins[6:0] : 7'b0;
+
+//     always @(opcode) begin
+//         // default
+//         rs1    = 5'b0;
+//         rs2    = 5'b0;
+//         rd     = 5'b0;
+//         funct3 = 3'b0;
+//         funct7 = 7'b0;
+//         imm_extend    = 32'b0;
+
+//         case (opcode)
+//             // R-type: rd, rs1, rs2, funct3, funct7
+//             7'b0110011: begin
+//                 rd     = ins[11:7];
+//                 funct3 = ins[14:12];
+//                 rs1    = ins[19:15];
+//                 rs2    = ins[24:20];
+//                 funct7 = ins[31:25];
+//                 imm_extend    = 32'b0; // không có imm
+//             end
+
+//             // I-type: rd, rs1, funct3, imm
+//             // (ADDI, ANDI, ORI, XORI, JALR, LOAD…)
+//             7'b0010011, // OP-IMM
+//             7'b0000011, // LOAD
+//             7'b1100111: // JALR
+//             begin
+//                 rd     = ins[11:7];
+//                 funct3 = ins[14:12];
+//                 rs1    = ins[19:15];
+//                 imm_extend    = {{20{ins[31]}}, ins[31:20]}; // sign-extend
+//             end
+
+//             // S-type: rs1, rs2, funct3, imm
+//             // (SW, SH, SB)
+//             7'b0100011: begin
+//                 funct3 = ins[14:12];
+//                 rs1    = ins[19:15];
+//                 rs2    = ins[24:20];
+//                 imm_extend    = {{20{ins[31]}}, ins[31:25], ins[11:7]};
+//             end
+
+//             // B-type: rs1, rs2, funct3, imm
+//             // (BEQ, BNE, BLT, BGE…)
+//             7'b1100011: begin
+//                 funct3 = ins[14:12];
+//                 rs1    = ins[19:15];
+//                 rs2    = ins[24:20];
+//                 imm_extend    = {{19{ins[31]}}, ins[31], ins[7], ins[30:25], ins[11:8], 1'b0};
+//             end
+
+//             // U-type
+//             7'b0110111, // LUI
+//             7'b0010111: // AUIPC
+//             begin
+//                 rd  = ins[11:7];
+//                 imm_extend = {ins[31:12], 12'b0};
+//             end
+
+//             // J-type: rd, imm
+//             // (JAL)
+//             7'b1101111: begin
+//                 rd  = ins[11:7];
+//                 imm_extend = {{11{ins[31]}}, ins[31],
+//                        ins[19:12], ins[20], ins[30:21], 1'b0};
+//             end
+//             default: ; // giữ nguyên mặc định
+//         endcase
+//     end
+// endmodule
+
+module imem #(
+    parameter COL = 32,          // số bit mỗi ô nhớ (1 ins = 32 bit)
+    parameter ROW = 256          // số dòng (số ins tối đa)
+)(
+    input  [31:0] pc,            // Program Counter
+    input iready,
+    output [31:0] ins,    // Instruction output
+    output reg [4:0]  rs1,
+    output reg [4:0]  rs2,
+    output reg [4:0]  rd,
+    output reg [2:0]  funct3,
+    output reg [6:0]  funct7,
+    output reg [31:0] imm_extend
+);
+
+    // Bộ nhớ ins
+    reg [COL-1:0] memory [0:ROW-1];
+    // Địa chỉ word-aligned: bỏ 2 bit thấp vì mỗi ins = 4 byte
+    wire [$clog2(ROW)-1:0] rom_addr = pc[31:2];
+    // Load chương trình từ file (hex hoặc bin)
+    initial begin
+        // Ví dụ dùng file .hex (mỗi dòng 1 ins 32-bit)
+        $readmemh("imem_data.txt", memory);
+    end
+    // Đọc combinational
+    assign ins = (iready == 1) ? memory[rom_addr] : 32'b0;
+
+    wire [6:0] opcode;
+    assign opcode = (iready) ? ins[6:0] : 7'b0;
+
+    always @(opcode) begin
+        // default
+        rs1    = 5'b0;
+        rs2    = 5'b0;
+        rd     = 5'b0;
+        funct3 = 3'b0;
+        funct7 = 7'b0;
+        imm_extend    = 32'b0;
+
+        case (opcode)
+            // R-type: rd, rs1, rs2, funct3, funct7
+            7'b0110011: begin
+                rd     = ins[11:7];
+                funct3 = ins[14:12];
+                rs1    = ins[19:15];
+                rs2    = ins[24:20];
+                funct7 = ins[31:25];
+                imm_extend    = 32'b0; // không có imm
+            end
+
+            // I-type: rd, rs1, funct3, imm
+            // (ADDI, ANDI, ORI, XORI, JALR, LOAD…)
+            7'b0010011, // OP-IMM
+            7'b0000011, // LOAD
+            7'b1100111: // JALR
+            begin
+                rd     = ins[11:7];
+                funct3 = ins[14:12];
+                rs1    = ins[19:15];
+                imm_extend    = {{20{ins[31]}}, ins[31:20]}; // sign-extend
+            end
+
+            // S-type: rs1, rs2, funct3, imm
+            // (SW, SH, SB)
+            7'b0100011: begin
+                funct3 = ins[14:12];
+                rs1    = ins[19:15];
+                rs2    = ins[24:20];
+                imm_extend    = {{20{ins[31]}}, ins[31:25], ins[11:7]};
+            end
+
+            // B-type: rs1, rs2, funct3, imm
+            // (BEQ, BNE, BLT, BGE…)
+            7'b1100011: begin
+                funct3 = ins[14:12];
+                rs1    = ins[19:15];
+                rs2    = ins[24:20];
+                imm_extend    = {{19{ins[31]}}, ins[31], ins[7], ins[30:25], ins[11:8], 1'b0};
+            end
+
+            // U-type
+            7'b0110111, // LUI
+            7'b0010111: // AUIPC
+            begin
+                rd  = ins[11:7];
+                imm_extend = {ins[31:12], 12'b0};
+            end
+
+            // J-type: rd, imm
+            // (JAL)
+            7'b1101111: begin
+                rd  = ins[11:7];
+                imm_extend = {{11{ins[31]}}, ins[31],
+                       ins[19:12], ins[20], ins[30:21], 1'b0};
+            end
+            default: ; // giữ nguyên mặc định
+        endcase
+    end
+
+endmodule
+
+
+module control_unit( //need fix
+    input [31:0] ins, 
+    input breq, brlt,
+    input iready,
+    output reg pcsel, regwen, asel, bsel, memw, //brun
+    output reg [1:0] wbsel,
+    output reg [2:0] alusel
+);
+    wire [6:0] opcode; 
+    wire [2:0] funct3;
+    wire [6:0] funct7;
+
+    assign opcode = iready ? ins[6:0] : 7'b0;
+    assign funct3 = ins[14:12];
+    assign funct7 = ins[31:25];
+    always @(opcode, funct3, funct7) begin
+        case(opcode)
+            7'b0110011: begin
+                case (funct3)
+                    3'b000: begin
+                        if (funct7 == 7'b0000000)
+                            begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b000; memw = 0; wbsel = 2'b01; end  // add
+                        else 
+                            begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b001; memw = 0; wbsel = 2'b01; end  // sub
+                    end
+                    3'b111: begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b010; memw = 0; wbsel = 2'b01; end  // and
+                    3'b110: begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b011; memw = 0; wbsel = 2'b01; end  // or
+                    3'b100: begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b100; memw = 0; wbsel = 2'b01; end  // xor
+                endcase
+            end
+            7'b0010011: begin pcsel = 0; regwen = 1; asel = 1; bsel = 0; alusel = 3'b000; memw = 0; wbsel = 2'b01; end  // addi
+            7'b0000011: begin pcsel = 0; regwen = 1; asel = 1; bsel = 0; alusel = 3'b000; memw = 0; wbsel = 2'b00; end  // lw
+            7'b1100111: begin pcsel = 1; regwen = 1; asel = 1; bsel = 0; alusel = 3'b000; memw = 0; wbsel = 2'b11; end  // jalr
+            7'b0100011: begin pcsel = 0; regwen = 0; asel = 1; bsel = 0; alusel = 3'b000; memw = 1; end                 // sw
+            7'b1100011: begin 
+                case(funct3)
+                    3'b000: begin pcsel = breq; regwen = 0; /*brun = 0;*/ asel = 0; bsel = 0; alusel = 3'b000; memw = 0; end  // beq
+                    3'b001: begin pcsel = ~breq; regwen = 0; /*brun = 0;*/ asel = 0; bsel = 0; alusel = 3'b000; memw = 0; end // bne
+                    3'b100: begin pcsel = brlt; regwen = 0; /*brun = 0;*/ asel = 0; bsel = 0; alusel = 3'b000; memw = 0; end  // blt
+                    3'b101: begin pcsel = ~brlt; regwen = 0; /*brun = 0;*/ asel = 0; bsel = 0; alusel = 3'b000; memw = 0; end // bge
+                    default: begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b000; memw = 0; wbsel = 2'b01; end
+                endcase
+            end
+            7'b1101111: begin pcsel = 1; regwen = 1; asel = 0; bsel = 0; alusel = 3'b000; memw = 0; wbsel = 2'b11; end   // jal
+            default: begin pcsel = 0; regwen = 1; asel = 1; bsel = 1; alusel = 3'b000; memw = 0; wbsel = 2'b01; end //R type
+        endcase
+    end
+endmodule
+
+
+module datapath (
+    input clk,
+    input rst_n,
+    output [31:0] pc_out,
+    output [31:0] ALU_result
+);
+
+    reg [31:0] pc;
+    wire [31:0] pc_next, pc4;
+    wire [1:0] wbsel;
+    wire iready;
+    assign iready = 1'b1;
+    wire [31:0] ins;
+    // wire [1:0] immsel;
+    wire pcsel;
+    wire memw;
+    wire [2:0] alusel;
+    wire asel, bsel;
+    wire breq, brlt;
+    wire regwen;
+    wire [4:0] rs1, rs2, rd;
+    wire [31:0] data_B, data;
+    wire [2:0] funct3;
+    wire [6:0] funct7;
+    wire [31:0] imm_extend;
+    wire [31:0] data_read;
+    wire [31:0] ALUres;
+
+
+    // PC
+    always @(posedge clk or negedge rst_n) begin 
+        if (!rst_n) pc <= 0;
+        else pc <= pc_next;
+    end
+
+    // PC + 4
+    assign pc4 = pc + 4;
+
+    // IMEM
+    imem #(.COL(32), .ROW(256)) imem_inst (
+        .pc(pc),
+        .iready(iready),
+        .ins(ins),
+        .rs1(rs1),
+        .rs2(rs2),
+        .rd(rd),
+        .funct3(funct3),
+        .funct7(funct7),
+        .imm_extend(imm_extend)
+    );
+
+    // Control Unit
+    control_unit control_unit_inst (
+        .ins(ins),
+        //.immsel(immsel),
+        .iready(iready),
+        .pcsel(pcsel),
+        .wbsel(wbsel),
+        .memw(memw),
+        .alusel(alusel),
+        .bsel(bsel),
+        .asel(asel),
+        // .brun(brun),
+        .breq(breq),
+        .brlt(brlt),
+        .regwen(regwen)
+    );
+
+    // decoder
+    // decode decode_inst (
+    //     .ins(ins),
+    //     .rs1(rs1),
+    //     .rs2(rs2),
+    //     .rd(rd),
+    //     .funct3(funct3),
+    //     .funct7(funct7),
+    //     .imm_extend(imm_extend)
+    // );
+
+    // register file
+    register_file register_file_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .regwen(regwen),
+        .addrA(rs1),
+        .addrB(rs2),
+        .addrD(rd),
+        .data_in(data),
+        .imm_extend(imm_extend),
+        .pc(pc),
+        .asel(asel),
+        .bsel(bsel),
+        .alusel(alusel),
+        .alu_res(ALUres),
+        .breq(breq),
+        .brlt(brlt),
+        .data_B(data_B)
+        // .data_A(data_A),
+        // .data_B(data_B)
+    );
+
+    // alu alu_inst (
+    //     .data_rs1(data_A),
+    //     .data_rs2(data_B),
+    //     .imm_extend(imm_extend),
+    //     .pc(pc),
+    //     .asel(asel),
+    //     .bsel(bsel),
+    //     .alusel(alusel),
+    //     .alu_res(ALUres),
+    //     .breq(breq),
+    //     .brlt(brlt)
+    // );
+
+    // branch branch_inst (
+    //     .data_A(data_A),
+    //     .data_B(data_B),
+    //     .breq(breq),
+    //     .brlt(brlt)
+    // );
+
+    data_memory data_memory_inst (
+        .clk(clk),
+        // .rst_n(rst_n),
+        .memw(memw),
+        .address(ALUres),
+        .data_write(data_B),
+        .data_read(data_read)
+    );
+
+    // PCnext
+    assign pc_next = (pcsel) ? ALUres : pc4; 
+
+    // Output
+    assign ALU_result = ALUres;
+    assign pc_out = pc;
+
+    // Write back
+    assign data = (wbsel == 2'b00) ? data_read :
+                    (wbsel == 2'b01) ? ALUres :
+                    (wbsel == 2'b11) ? pc4 : 32'b0;
+
+endmodule
+
+
+
+
+
+
+
+
+
