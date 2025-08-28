@@ -5,7 +5,8 @@ module register_file (
     input [31:0] data_in,
     input [31:0] pc,
     input [2:0] immsel,
-    input asel, bsel,
+    input asel, bsel, 
+    input brun,
     input [2:0] alusel, 
     output reg [31:0] alu_res,
     output breq, brlt,
@@ -13,19 +14,21 @@ module register_file (
 );
     reg [31:0] mem [0:31]; 
 
+    wire [31:0] data_A, op1, op2;
+    
     integer i;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             for (i = 0; i < 32; i = i + 1)
                 mem[i] <= 32'b0;
-        end else if (regwen && ins[11:7] != 0) begin
+        end else if (regwen && (ins[11:7] != 0)) begin
             // ghi vào register khác x0
             mem[ins[11:7]] <= data_in;
         end
     end
 
     // Read asynchronous
-    wire [31:0] data_A;
+
     assign data_A = mem[ins[19:15]];
     assign data_B = mem[ins[24:20]];
 
@@ -49,12 +52,11 @@ module register_file (
     end
 
 
-    wire [31:0] op1, op2;
-
-    assign op1 = asel ? data_A : pc;
-    assign op2 = bsel ? data_B : imm_extend; 
+    assign op1 = asel ? pc : data_A;
+    assign op2 = bsel ? imm_extend : data_B; 
 
     always @(alusel, op1, op2) begin
+        alu_res = 0;
         case(alusel)
             3'b000: alu_res = op1 + op2;
             3'b001: alu_res = op1 - op2;
@@ -66,6 +68,6 @@ module register_file (
     end
 
     assign breq = (data_A == data_B);
-    assign brlt = ($signed(data_A) < $signed(data_B)); //(data_A < data_B);
+    assign brlt = brun ? (A < B) : ($signed(data_A) <  $signed(data_B));
 
 endmodule
