@@ -68,6 +68,6 @@ module register_file (
     end
 
     assign breq = (data_A == data_B);
-    assign brlt = brun ? (A < B) : ($signed(data_A) <  $signed(data_B));
+    assign brlt = brun ? (data_A < data_B) : ($signed(data_A) <  $signed(data_B));
 
 endmodule
