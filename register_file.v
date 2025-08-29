@@ -39,7 +39,7 @@ module register_file (
                 U_type = 3'b101;
     reg [31:0] imm_extend;
 
-    always @(immsel) begin
+    always @(immsel, ins) begin
         imm_extend    = 32'b0;
         case (immsel)
             I_type: imm_extend = {{20{ins[31]}}, ins[31:20]};
@@ -68,6 +68,6 @@ module register_file (
     end
 
     assign breq = (data_A == data_B);
-    assign brlt = brun ? (A < B) : ($signed(data_A) <  $signed(data_B));
+    assign brlt = brun ? (data_A < data_B) : ($signed(data_A) <  $signed(data_B));
 
 endmodule
