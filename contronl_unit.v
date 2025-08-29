@@ -12,7 +12,7 @@ module control_unit(
     wire [6:0] funct7 = ins[31:25];
 
     reg [13:0] control;
-    assign {pcsel, immsel, regwen, brun, asel, bsel, alusel, memw, wbsel} = control;
+    assign {pcsel, immsel, regwen, brun, asel, bsel, alusel, memrw, wbsel} = control;
 
     always @(funct3, funct7, opcode) begin
         control = 14'b0_000_0_0_0_0_000_0_00;
