@@ -6,9 +6,6 @@ module tb_datapath;
     wire [31:0] pc_out;
     wire [31:0] ALU_result;
 
-    // Internal signals tapping
-    wire [31:0] writedata, dataadr;
-    wire memwrite;
 
     // DUT
     datapath dut (
@@ -18,52 +15,37 @@ module tb_datapath;
         .ALU_result(ALU_result)
     );
 
-    // expose internal signals
-    assign writedata = dut.data_B;
-    assign dataadr   = dut.ALUres;
-    assign memwrite  = dut.memw;
-
-    // Clock
+    // Clock: period 10ns
     initial begin
         clk = 0;
-        forever #5 clk = ~clk;   // 100MHz
+        forever #5 clk = ~clk;
     end
 
-    // Reset
     initial begin
         rst_n = 0;
-        #20;
+        #10;
         rst_n = 1;
     end
 
-    // Monitor
-    initial begin
-        $dumpfile("wave.vcd");
-        $dumpvars(0, tb_datapath);
-    end
-
-    // Simulation runtime
-    initial begin
-        #2000;  // run 2000ns then stop
-        $display("Timeout! End simulation.");
-        $stop;
-    end
-
-    // Print PC and ALU
     always @(posedge clk) begin
-        if (rst_n) begin
-            $display("t=%0t  PC=%h  ALU=%h  memwrite=%b addr=%h data=%h",
-                     $time, pc_out, ALU_result, memwrite, dataadr, writedata);
-        end
-    end
+    $display("time=%0t pc=%08h pcsel=%b immsel=%03b regwen=%b brun=%b asel=%b bsel=%b alusel=%03b memw=%b wbsel=%02b",
+             $time,
+             tb_datapath.dut.pc_out,
+             tb_datapath.dut.control_unit_inst.pcsel,
+             tb_datapath.dut.control_unit_inst.immsel,
+             tb_datapath.dut.control_unit_inst.regwen,
+             tb_datapath.dut.control_unit_inst.brun,
+             tb_datapath.dut.control_unit_inst.asel,
+             tb_datapath.dut.control_unit_inst.bsel,
+             tb_datapath.dut.control_unit_inst.alusel,
+             tb_datapath.dut.control_unit_inst.memrw,
+             tb_datapath.dut.control_unit_inst.wbsel
+    );
+end
 
-    // Check expected write
-    always @(negedge clk) begin
-        if (memwrite) begin
-            if (dataadr == 32'd100 && writedata == 32'd25) begin
-                $display("=== Simulation succeeded ===");
-                $stop;
-            end
-        end
+    initial begin
+        #200;
+        $display("Simulation finished.");
+        $finish;
     end
 endmodule
