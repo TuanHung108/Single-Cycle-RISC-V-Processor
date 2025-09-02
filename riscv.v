@@ -1,3 +1,5 @@
+// Processor: call instance and connect wire between control unit and datapath
+
 module riscv (
     input  wire        clk,
     input  wire        rst_n,

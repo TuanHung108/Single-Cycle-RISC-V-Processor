@@ -1,3 +1,5 @@
+// Top module: connect processor (riscv) with instruction memory and data memory
+
 module single_cycle_riscv (
     input clk,
     input rst_n,
