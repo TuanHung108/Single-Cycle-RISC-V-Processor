@@ -12,35 +12,35 @@ module register_file (
     output breq, brlt,
     output [31:0] data_B
 );
-    reg [31:0] mem [0:31]; 
 
+    reg [31:0] mem [0:31]; 
+    reg [31:0] imm_extend;
     wire [31:0] data_A, op1, op2;
     
-    integer i;
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            for (i = 0; i < 32; i = i + 1)
-                mem[i] <= 32'b0;
-        end else if (regwen && (ins[11:7] != 0)) begin
-            // ghi vào register khác x0
-            mem[ins[11:7]] <= data_in;
-        end
-    end
-
-    // Read asynchronous
-
-    assign data_A = mem[ins[19:15]];
-    assign data_B = mem[ins[24:20]];
-
     localparam  I_type = 3'b001,
                 S_type = 3'b010,
                 B_type = 3'b011,
                 J_type = 3'b100,
                 U_type = 3'b101;
-    reg [31:0] imm_extend;
 
+    // fixed x0 = 0
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            mem[0] <= 32'b0;
+        end else begin
+            if (regwen && (ins[11:7] != 5'd0)) begin
+                mem[ins[11:7]] <= data_in;
+            end
+        end
+    end
+
+    // Read asynchronous
+    assign data_A = mem[ins[19:15]];
+    assign data_B = mem[ins[24:20]];
+
+    // Imm for each instruction type
     always @(immsel, ins) begin
-        imm_extend    = 32'b0;
+        imm_extend = 32'b0;
         case (immsel)
             I_type: imm_extend = {{20{ins[31]}}, ins[31:20]};
             S_type: imm_extend = {{20{ins[31]}}, ins[31:25], ins[11:7]};
@@ -51,10 +51,11 @@ module register_file (
         endcase
     end
 
-
+    // Mux 
     assign op1 = asel ? pc : data_A;
     assign op2 = bsel ? imm_extend : data_B; 
 
+    // ALU
     always @(alusel, op1, op2) begin
         alu_res = 0;
         case(alusel)

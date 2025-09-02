@@ -17,6 +17,6 @@ module data_memory (
     always @(posedge clk) begin
         if (memrw) ram[addr] <= data_write; // ghi
     end
-
+    
     assign data_read = ram[addr];
 endmodule

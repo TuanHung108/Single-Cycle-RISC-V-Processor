@@ -3,14 +3,14 @@ module imem #(
     parameter ROW = 256          
 )(
     input  [31:0] pc,   // read address   
-    output [31:0] ins   // intruction
+    output [31:0] ins   // instruction
 );
 
     // Bộ nhớ ins
     reg [COL-1:0] memory [0:ROW-1];
 
     initial begin
-        $readmemb("C:/QuestaSim_Project/RISCV-Single Cycle Processor/imem_data.bin", memory);
+        $readmemb("imem_data.bin", memory);
     end
 
     assign ins = memory[pc[31:2]];
